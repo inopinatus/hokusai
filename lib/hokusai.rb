@@ -3,51 +3,27 @@ require "active_support"
 require "yaml"
 
 module Hokusai
+
+  ##
+  # Templatable models support taking a snapshot of their data, for later use stamping out clones.
+  #
+  # Include this module to obtain the +as_template+ and +from_template+ methods that support a simple container
+  # such as Hokusai::Container.
+  #
+  # Configure it with the +template+ declaration, which accepts a list of columns and an +includes+ option
+  # for nested assocations.
+  #
+  # === Example
+  #
+  #   class Device < ActiveRecord::Base
+  #     include Hokusai::Templatable
+  #
+  #     has_many :interfaces
+  #
+  #     template :name, :model, :location, :year, include: [:interfaces]
+  #   end
+
   module Templatable
-    #
-    # Templatable models support taking a snapshot of their data, for later use stamping out clones.
-    #
-    # Include this module to obtain the +as_template+ and +from_template+ methods that support a simple container
-    # such as Hokusai::Container.
-    # 
-    # Configure it with the +template+ declaration, which takes a list of columns and an optional +includes+ option
-    # for nested assocations.
-    #
-    # ==== Example
-    # class Template < ActiveRecord::Base
-    #   include Hokusai::Container
-    #   validates :name, presence: true
-    # end
-    #
-    # class Device < ActiveRecord::Base
-    #   include Hokusai::Templatable
-    #
-    #   belongs_to :owner
-    #   has_many :interfaces
-    #
-    #   template :owner_id, :name, :model, :location, :year, include: [:interfaces]
-    #
-    #   # ...
-    # end
-    #
-    # class Interfaces < ActiveRecord::Base
-    #   include Hokusai::Templatable
-    #   belongs_to :device
-    #   template :name, :address, :enabled
-    #   # ...
-    # end
-    #
-    # device = Device.create!(name: "router", model: "CX-6790", location: "SFO", year: 2017)
-    # device.interfaces << Interface.create!([{name: "de0", address: "10.0.0.1", enabled: false}, {name: "lo0", address: "127.0.0.1", enabled: true}])
-    #
-    # Template.create!(origin: device, name: 'SFO router template')
-    #
-    # new_device = Template.last.use do |dev|
-    #   dev.name = "router-2"
-    # end
-    #
-    # new_device.save!
-    #
     extend ActiveSupport::Concern
 
     included do
@@ -55,6 +31,7 @@ module Hokusai
     end
 
     class_methods do
+      # Define the template specification for the model.
       def template(*template_columns, **options)
         template_columns = Array(template_columns).map(&:to_s)
         included_associations = Array(options[:include]).map(&:to_s)
@@ -65,6 +42,9 @@ module Hokusai
         }
       end
 
+      ##
+      # Build a new, unsaved instance of the model (and any included associations) from the template supplied.
+      # The block will be called with the new instance.
       def from_template(template, &block)
         if template.is_a?(Array)
           template.map { |tpl| from_template(tpl, &block) }
@@ -78,6 +58,8 @@ module Hokusai
       end
     end
 
+    ##
+    # Serialize this object (and any included associations) according to the template specification.
     def as_template
       result_hash = {}
 
@@ -101,20 +83,16 @@ module Hokusai
     alias :read_attribute_for_template :send
   end
 
+  ##
+  # This module supplies a simple container for snapshots of template-style data.
+  # These templates are used when stamping out new objects.
+  #
+  # A Hokusai container communicates with models via the +as_template+ method and +from_template+ class method.
+  # The data will be serialized as YAML; this container class is otherwise not concerned with its structure.
+  #
+  # Relies on the presence of two columns: +hokusai_class+ (string) and +hokusai_template+ (text).
+
   module Container
-    #
-    # A simple container mixin for snapshots of template-style data. They are then used when stamping out new objects.
-    #
-    # A Hokusai container communicates with models via the +as_template+ method and +from_template+ class method.
-    # The data will be serialized as YAML; this container class is otherwise not concerned with
-    # its structure.
-    #
-    # The provided mixin (<tt>Hokusai::Templatable</tt>) implements the +as_template+ and +from_template+
-    # methods and supplies the +template+ method to assist with their configuration.  For advanced configurations
-    # you may need to roll your own.
-    # 
-    # Relies on the presence of hokusai_class:string and hokusai_template:text columns.
-    #
     extend ActiveSupport::Concern
 
     included do
@@ -123,19 +101,19 @@ module Hokusai
 
     # Set current template data, calling +as_template+ on the origin.
     #
-    # Supports usage as @template = Template.new(origin: project, ...attrs...)
+    # Intended for use via <tt>@template = Template.new(origin: project, ...attrs...)</tt>
     #
     def origin=(object)
       self.hokusai_class = object.class.to_s
       self.hokusai_template = YAML.dump(object.as_template)
     end
 
-    # Stamp out a new object from the template. Calls +from_template+ on the matching model's class with
+    # Stamp out a new object from the template. Calls +from_template+ on the applicable class with
     # the deserialized template data, passing on any supplied block.
     #
     # The semantics of +from_template+ are left to the receiving model.  If using the supplied
-    # mixin <tt>Hokusai::Templatable</tt> then a new but unsaved model object will be instantiated,
-    # with dependent nested models if specified.
+    # concern <tt>Hokusai::Templatable</tt> then a new, unsaved model object will be instantiated,
+    # with nested models included as specified.
     #
     def stamp(&block)
       hokusai_class.constantize.from_template(YAML.load(hokusai_template), &block)
