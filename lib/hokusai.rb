@@ -30,7 +30,7 @@ module Hokusai
       class_attribute :🌊
     end
 
-    class_methods do
+    module ClassMethods
       # Define the template specification for the model.
       def template(*template_columns, **options)
         template_columns = Array(template_columns).map(&:to_s)
