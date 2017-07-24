@@ -119,7 +119,7 @@ Aggregates types may also need special treatment.  You can override `read_attrib
 
 ### Advanced configuration
 
-You're not constrained to using `Hokusai::Templatable`.  Any model that implements `#as_template` and `::from_template` will do, and the container doesn't impose constraints on what they do.  The only expectation is that `#as_template` returns a data structure ready for serialization as YAML, and that `::from_template` accepts the same structure as the first parameter.  Beyond that you can do as you please with the data.
+You're not constrained to using `Hokusai::Templatable`.  Any model that implements `#as_template` and `::from_template` will do, and the container doesn't impose constraints on their behaviour.  The only expectation is that `#as_template` returns a data structure ready for serialization as YAML, and that `::from_template` accepts the same structure as the first parameter.  Beyond that you can do as you please with the data.
 
 ## Todo
 
